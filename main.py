@@ -7,20 +7,28 @@ import os
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import whois
 import time
+import unicodedata
 
-domain_names = []
+domain_names = [
+   "doubletop",
+   "jsbutter",
+   "tickleberry",
+   "chicofruit"
+]
 top_level_domains = ["com"]
-workers = 20 # how many threads will run. More is faster. 50 was problematic.
+workers = 30 # how many threads will run. More is faster. 50 was problematic.
 
 def run():
     print("Application started...")
-    prepare_data = input("Do you want to prepare data first (Y/n): ")
-    check_checked_domains_using_api = input("Do you want to safe check the domains (Y/n): ")
+    prepare_data = input("Do you want to pull the data folder (Y/n): ")
+    remove_taken_ones = input("Do you want to prepare for the whois scan? (Y/n): ")
+    check_checked_domains_using_api = input("Do you want to check the domains (Y/n): ")
     if prepare_data.lower() != "n":
       prepare()
-      check_domains()
-      print("Quick check finished...")
+      print("Data gotten")
       time.sleep(10)
+    if remove_taken_ones.lower() != "n":
+       check_domains()
     if check_checked_domains_using_api.lower() != "n":
       print("Checking these an extra time with whois...")
       check_domain_name_status()
@@ -36,10 +44,21 @@ def prepare():
             file_path = os.path.join(root, file)
             with open(file_path, 'r') as f:
               for line in f:
-                line = re.sub(r'[^a-zA-Z0-9 ]', '', line)
+                line = remove_diacritics(line)
                 cleaned_line = line.strip().replace(" ", "")
+                #print(cleaned_line)
                 if cleaned_line:  # Only append non-empty lines
                   domain_names.append(cleaned_line)
+
+def remove_diacritics(line):
+  # Normalize the string to remove diacritics
+  normalized_line = unicodedata.normalize('NFD', line)
+  # Remove diacritic marks
+  line_without_diacritics = ''.join(
+    c for c in normalized_line if unicodedata.category(c) != 'Mn'
+  )
+  # Use regex to remove non-alphanumeric characters (except spaces)
+  return re.sub(r'[^a-zA-Z0-9 ]', '', line_without_diacritics)
 
 def check_domain_name_status():
   def is_available(domain):
@@ -76,7 +95,8 @@ def check_domain_name_status():
   # Write the available domains to the output file
   with open('output/free_domains.txt', 'w') as result_file:
     result_file.write("FREE DOMAINS:\n")
-    for domain in good_domains:
+
+    for domain in sorted(good_domains, key=len):
       result_file.write(f"{domain}\n") if domain != ".com" else None
 
 def check_domains():
@@ -111,7 +131,6 @@ def check_domains():
         result_file.write("POSSIBLY AVAILABLE:\n")
         for domain in available:
             result_file.write(f"{domain}\n")
-
 
 def check(url):
     try:
