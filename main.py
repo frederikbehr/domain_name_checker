@@ -62,7 +62,7 @@ def check_domain_name_status():
     domains_to_check = [re.sub(r'\s+', '', line.strip()) for line in file.readlines()]
 
   # Use ThreadPoolExecutor to check domain availability
-  with ThreadPoolExecutor(max_workers=20) as executor:
+  with ThreadPoolExecutor(max_workers=workers) as executor:
     futures = {executor.submit(is_available, domain): domain for domain in domains_to_check if domain}
 
     for future in as_completed(futures):
@@ -85,7 +85,7 @@ def check_domains():
     available = []
     not_available = []
     # remove domains that are for sure not available
-    with ThreadPoolExecutor(max_workers=20) as executor:  # Adjust the number of threads as needed
+    with ThreadPoolExecutor(max_workers=workers) as executor:  # Adjust the number of threads as needed
       futures = {
         executor.submit(check, f'https://www.{domain_name}.{top_level_domain}'): f"{domain_name}.{top_level_domain}"
         for domain_name in domain_names 
