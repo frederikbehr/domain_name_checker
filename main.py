@@ -6,6 +6,7 @@ import time
 import unicodedata
 from datetime import datetime, timedelta
 
+
 domain_names = []
 top_level_domains = ["com"]
 workers = 30 # how many threads will run. More is faster. 50 was problematic.
@@ -19,7 +20,6 @@ def run():
     if prepare_data.lower() != "n":
       prepare()
       print("Data gotten")
-      time.sleep(10)
     if check_checked_domains_using_api.lower() != "n":
       print("Checking availability...")
       check_domain_name_status()
@@ -37,9 +37,18 @@ def prepare():
               for line in f:
                 line = remove_diacritics(line)
                 cleaned_line = line.strip().replace(" ", "")
+                #if len(domain_names) > 100:
+                 # break
                 if cleaned_line:
                   for top_level_domain in top_level_domains:
                     domain_names.append(f"{cleaned_line}.{top_level_domain}")
+                    if cleaned_line.endswith("s") != True and cleaned_line.endswith("y"):
+                      if cleaned_line.endswith("y") == True and cleaned_line.endswith("ey") != True and cleaned_line.endswith("ay") != True and cleaned_line.endswith("oy") != True:
+                        domain_names.append(f"{cleaned_line[:-1]}ies.{top_level_domain}")
+                      elif cleaned_line.endswith("ch") == True:
+                        domain_names.append(f"{cleaned_line}es.{top_level_domain}")
+                      else:
+                        domain_names.append(f"{cleaned_line}s.{top_level_domain}")
 
 def remove_diacritics(line):
   # Normalize the string to remove diacritics
@@ -60,7 +69,8 @@ def check_domain_name_status():
         expiration_date = w.expiration_date
         # Handle case where expiration_date might be a list
         if isinstance(expiration_date, list):
-          expiration_date = expiration_date[0]
+          #print(f"{expiration_date} - {domain}")
+          expiration_date = expiration_date[0] + timedelta(hours=1)
             
         # Calculate 4 weeks from today
         four_weeks_from_now = datetime.now() + timedelta(weeks=4)
@@ -98,11 +108,14 @@ def check_domain_name_status():
 
     for domain in sorted(good_domains, key=len):
       result_file.write(f"{domain}\n") if domain != ".com" else None
+
+  def parse_date(domain_info):
+    date_str = domain_info.split(" - ")[1].strip()
+    return datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S") 
   
   with open('output/available_soon.txt', 'w') as result_file:
-    result_file.write("FREE DOMAINS:\n")
-
-    for domain in sorted(taken_but_free_soon, key=len):
+    result_file.write("EXPIRES SOON:\n")
+    for domain in sorted(taken_but_free_soon, key=parse_date):
       result_file.write(f"{domain}\n") if domain != ".com" else None
 
 

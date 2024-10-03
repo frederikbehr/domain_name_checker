@@ -5,13 +5,13 @@
 /data
   Your .txt files with domain name tries goes here.
 /output
-  domain_check_result.txt # removes the "definitely not available" ones
+  available_soon.txt # Expires in less than 4 weeks
   free_domains.txt # Free domains
 main.py # Code is here
 ```
 
 ### Data
-You can add .txt files to the data directory with max. 1 sub folder containing .txt files.
+You can add .txt files to the data directory with max. 2 sub folder down containing .txt files.
 
 Example:
 
