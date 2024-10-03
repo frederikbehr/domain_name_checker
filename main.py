@@ -1,36 +1,27 @@
-import socket
-from django.core.validators import URLValidator
-import requests
-import sys
 import re
 import os
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import whois
 import time
 import unicodedata
+from datetime import datetime, timedelta
 
-domain_names = [
-   "doubletop",
-   "jsbutter",
-   "tickleberry",
-   "chicofruit"
-]
+domain_names = []
 top_level_domains = ["com"]
 workers = 30 # how many threads will run. More is faster. 50 was problematic.
+
+taken_but_free_soon = []
 
 def run():
     print("Application started...")
     prepare_data = input("Do you want to pull the data folder (Y/n): ")
-    remove_taken_ones = input("Do you want to prepare for the whois scan? (Y/n): ")
     check_checked_domains_using_api = input("Do you want to check the domains (Y/n): ")
     if prepare_data.lower() != "n":
       prepare()
       print("Data gotten")
       time.sleep(10)
-    if remove_taken_ones.lower() != "n":
-       check_domains()
     if check_checked_domains_using_api.lower() != "n":
-      print("Checking these an extra time with whois...")
+      print("Checking availability...")
       check_domain_name_status()
     if (check_checked_domains_using_api.lower() == "n" and prepare_data.lower() == "n"):
        print("You said no to do all the tasks. Therefore, nothing was done.")
@@ -46,9 +37,9 @@ def prepare():
               for line in f:
                 line = remove_diacritics(line)
                 cleaned_line = line.strip().replace(" ", "")
-                #print(cleaned_line)
-                if cleaned_line:  # Only append non-empty lines
-                  domain_names.append(cleaned_line)
+                if cleaned_line:
+                  for top_level_domain in top_level_domains:
+                    domain_names.append(f"{cleaned_line}.{top_level_domain}")
 
 def remove_diacritics(line):
   # Normalize the string to remove diacritics
@@ -64,6 +55,19 @@ def check_domain_name_status():
   def is_available(domain):
     try:
       w = whois.whois(domain)
+
+      if w.expiration_date:
+        expiration_date = w.expiration_date
+        # Handle case where expiration_date might be a list
+        if isinstance(expiration_date, list):
+          expiration_date = expiration_date[0]
+            
+        # Calculate 4 weeks from today
+        four_weeks_from_now = datetime.now() + timedelta(weeks=4)
+            
+        if expiration_date < four_weeks_from_now:
+          taken_but_free_soon.append(f"{domain} - {expiration_date}")
+
       if w.status is None and w.creation_date is None:  # Adjusted for thoroughness
         print(f"Domain available: {domain}")
         return True
@@ -76,13 +80,9 @@ def check_domain_name_status():
 
   good_domains = []
 
-  # Read domain names from the file
-  with open('output/domain_check_results.txt', 'r') as file:
-    domains_to_check = [re.sub(r'\s+', '', line.strip()) for line in file.readlines()]
-
   # Use ThreadPoolExecutor to check domain availability
   with ThreadPoolExecutor(max_workers=workers) as executor:
-    futures = {executor.submit(is_available, domain): domain for domain in domains_to_check if domain}
+    futures = {executor.submit(is_available, domain): domain for domain in domain_names if domain}
 
     for future in as_completed(futures):
       domain = futures[future]
@@ -98,62 +98,12 @@ def check_domain_name_status():
 
     for domain in sorted(good_domains, key=len):
       result_file.write(f"{domain}\n") if domain != ".com" else None
+  
+  with open('output/available_soon.txt', 'w') as result_file:
+    result_file.write("FREE DOMAINS:\n")
 
-def check_domains():
-    total = len(domain_names) * len(top_level_domains)
-    counter = 0
-    available = []
-    not_available = []
-    # remove domains that are for sure not available
-    with ThreadPoolExecutor(max_workers=workers) as executor:  # Adjust the number of threads as needed
-      futures = {
-        executor.submit(check, f'https://www.{domain_name}.{top_level_domain}'): f"{domain_name}.{top_level_domain}"
-        for domain_name in domain_names 
-        for top_level_domain in top_level_domains
-      }
+    for domain in sorted(taken_but_free_soon, key=len):
+      result_file.write(f"{domain}\n") if domain != ".com" else None
 
-      for future in as_completed(futures):
-        domain_name = futures[future]
-        try:
-            in_use = future.result()
-            if in_use:
-                available.append(domain_name)
-            else:
-                not_available.append(domain_name)
-        except Exception as e:
-            print(f"Error checking domain {domain_name}: {e}")
-
-        counter += 1
-        status_message = f"Checking domain {counter}/{total}: {domain_name}"
-        print(status_message.ljust(70), end='\r')
-        sys.stdout.flush()
-    with open('output/domain_check_results.txt', 'w') as result_file:
-        result_file.write("POSSIBLY AVAILABLE:\n")
-        for domain in available:
-            result_file.write(f"{domain}\n")
-
-def check(url):
-    try:
-        validate = URLValidator()
-        validate(url)
-    except Exception:
-        print("\nNot valid domain name. Possibly written incorrectly.\n")
-        return False
-
-    try:
-        # Set connection and read timeouts
-        requests.get(url, timeout=(3, 5))
-        return False  # Domain is in use if we get a response
-    except requests.ConnectionError:
-        return True  # Domain is available
-    except socket.gaierror:
-        print(f"\nInvalid domain: {url} (hostname could not be resolved)\n")
-        return False
-    except requests.RequestException as e:
-        print(f"\nAn error occurred when trying to reach {url}: {e}\n")
-        return False
-    except requests.Timeout:
-        print(f"\nRequest timed out for domain: {url}\n")
-        return False
 
 run()
