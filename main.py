@@ -42,13 +42,6 @@ def prepare():
                 if cleaned_line:
                   for top_level_domain in top_level_domains:
                     domain_names.append(f"{cleaned_line}.{top_level_domain}")
-                    if cleaned_line.endswith("s") != True and cleaned_line.endswith("y"):
-                      if cleaned_line.endswith("y") == True and cleaned_line.endswith("ey") != True and cleaned_line.endswith("ay") != True and cleaned_line.endswith("oy") != True:
-                        domain_names.append(f"{cleaned_line[:-1]}ies.{top_level_domain}")
-                      elif cleaned_line.endswith("ch") == True:
-                        domain_names.append(f"{cleaned_line}es.{top_level_domain}")
-                      else:
-                        domain_names.append(f"{cleaned_line}s.{top_level_domain}")
 
 def remove_diacritics(line):
   # Normalize the string to remove diacritics
